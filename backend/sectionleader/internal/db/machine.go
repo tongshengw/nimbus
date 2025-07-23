@@ -9,9 +9,9 @@ func CreateMachine(machine *models.MachineData) error {
 	return DB.Create(machine).Error
 }
 
-func GetMachineByUUID(id shared.MachineUUID) ([]models.MachineData, error) {
+func GetMachineByUUID(uuid shared.MachineUUID) ([]models.MachineData, error) {
 	var machines []models.MachineData
-	err := DB.Where("Id = ?", id).Find(&machines).Error
+	err := DB.Where("UUID = ?", uuid).Find(&machines).Error
 	return machines, err
 }
 

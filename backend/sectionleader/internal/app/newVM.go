@@ -55,7 +55,7 @@ func SpawnNewVM(ctx context.Context) (*firecracker.Machine, shared.MachineUUID, 
 
 	machine, err := setupFirecrackerMachine(ctx, opts)
 	if err != nil {
-		return nil, id, shared.Ipv4{},err
+		return nil, id, shared.Ipv4{}, err
 	}
 
 	machineStartedChannel := make(chan bool)
@@ -73,6 +73,41 @@ func SpawnNewVM(ctx context.Context) (*firecracker.Machine, shared.MachineUUID, 
 
 	case <-time.After(constants.DefaultTimeout):
 		return nil, id, shared.Ipv4{}, fmt.Errorf("machine start timed out")
+	}
+}
+
+func RestoreExistingVM(ctx context.Context, uuid shared.MachineUUID, ip shared.Ipv4) (*firecracker.Machine, error) {
+	vmPaths, err := getExistingVMPaths(uuid)
+	if err != nil {
+		logrus.Errorf("failed to get existing VM paths: %v", err)
+		return nil, err
+	}
+
+	opts, err := setVMOptsWithIP(vmPaths, ip)
+	if err != nil {
+		logrus.Errorf("failed to set VM options: %v", err)
+		return nil, err
+	}
+	defer opts.Close()
+
+	machine, err := setupFirecrackerMachine(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	machineStartedChannel := make(chan bool)
+	go runFirecrackerMachine(ctx, machine, machineStartedChannel)
+
+	select {
+	case machineStarted := <-machineStartedChannel:
+		if machineStarted {
+			return machine, nil
+		} else {
+			return nil, fmt.Errorf("machine start fail")
+		}
+
+	case <-time.After(constants.DefaultTimeout):
+		return nil, fmt.Errorf("machine start timed out")
 	}
 }
 
@@ -125,6 +160,30 @@ func createVMFolder(id shared.MachineUUID) (vmFilePaths, error) {
 	return vmFilePaths{id, dstImgPath, fsExt4Path, stdoutPath, stderrPath}, nil
 }
 
+func getExistingVMPaths(uuid shared.MachineUUID) (vmFilePaths, error) {
+	dstRootPath := constants.DataDirPath + "/" + uuid.String()
+
+	// Check if the VM directory exists
+	if _, err := os.Stat(dstRootPath); os.IsNotExist(err) {
+		return vmFilePaths{}, fmt.Errorf("VM directory does not exist for ID %s", uuid.String())
+	}
+
+	dstImgPath := dstRootPath + "/vmlinux"
+	fsExt4Path := dstRootPath + "/fs.ext4"
+	stdoutPath := dstRootPath + "/log/stdout.log"
+	stderrPath := dstRootPath + "/log/stderr.log"
+
+	// Verify that required files exist
+	requiredFiles := []string{dstImgPath, fsExt4Path}
+	for _, file := range requiredFiles {
+		if _, err := os.Stat(file); os.IsNotExist(err) {
+			return vmFilePaths{}, fmt.Errorf("required VM file does not exist: %s", file)
+		}
+	}
+
+	return vmFilePaths{uuid, dstImgPath, fsExt4Path, stdoutPath, stderrPath}, nil
+}
+
 func setVMOpts(p vmFilePaths) (*options, error) {
 	opts := newOptions()
 	opts.FcBinary = "../../firecracker/release/firecracker"
@@ -139,6 +198,26 @@ func setVMOpts(p vmFilePaths) (*options, error) {
 	}
 	opts.CniNetworkName = CniNetworkName
 	// opts.FcNicConfig = []string{"tap0/06:00:AC:10:00:02"}
+	opts.FcStdoutPath = p.stdoutPath
+	opts.FcStderrPath = p.stderrPath
+	return opts, nil
+}
+
+func setVMOptsWithIP(p vmFilePaths, ip shared.Ipv4) (*options, error) {
+	opts := newOptions()
+	opts.FcBinary = "../../firecracker/release/firecracker"
+	opts.FcKernelImage = p.kernelImgPath
+	opts.FcRootDrivePath = p.fsRootPath
+	opts.FcCPUCount = 1
+	opts.FcMemSz = 512
+	opts.FcSocketPath = "/tmp/firecracker-" + p.id.String() + ".socket"
+
+	// Use existing CNI configuration or create new one
+	CniNetworkName, err := GenerateCniConfFileWithIP(p.id, ip)
+	if err != nil {
+		return nil, err
+	}
+	opts.CniNetworkName = CniNetworkName
 	opts.FcStdoutPath = p.stdoutPath
 	opts.FcStderrPath = p.stderrPath
 	return opts, nil
@@ -222,7 +301,7 @@ func setupFirecrackerMachine(ctx context.Context, opts *options) (*firecracker.M
 			// reads nothing
 			WithStdin(strings.NewReader("")).
 			Build(ctx)
-		
+
 		// if cmd.SysProcAttr == nil {
 		// 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		// 		Setpgid:    true,
