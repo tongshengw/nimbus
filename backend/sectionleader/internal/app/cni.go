@@ -37,8 +37,6 @@ type CNIConfig struct {
 
 var nextSubnet net.IP = net.ParseIP(constants.CniFirstSubnetStr).To4()
 
-// generateCniConfFileWithSubnet creates CNI configuration with the provided subnet
-// This is the underlying function that contains all the CNI configuration logic
 func generateCniConfFileWithSubnet(id shared.MachineUUID, subnet string, logMessage string) (string, error) {
 	vmID := id.String()
 
@@ -80,8 +78,6 @@ func generateCniConfFileWithSubnet(id shared.MachineUUID, subnet string, logMess
 	return config.Name, os.WriteFile(confPath, jsonBytes, 0644)
 }
 
-// GenerateCniConfFile generates CNI configuration with auto-incrementing subnet
-// This wrapper function handles subnet generation and calls the underlying function
 func GenerateCniConfFile(id shared.MachineUUID) (string, error) {
 	if nextSubnet.Equal(net.ParseIP(constants.CniLastSubnetStr).To4()) {
 		return "", fmt.Errorf("ran out of subnet IDs")
@@ -95,25 +91,17 @@ func GenerateCniConfFile(id shared.MachineUUID) (string, error) {
 	subnetInt := binary.BigEndian.Uint32(nextSubnet.To4())
 	binary.BigEndian.PutUint32(nextSubnet, subnetInt+4)
 
-	// FIXME:
-	logrus.Infof("HERE: %s", nextSubnet.String())
-
 	return generateCniConfFileWithSubnet(id, subnet, "created CNI config, with subnet %s, path %s")
 }
 
-// GenerateCniConfFileWithIP creates CNI configuration with a specific IP address
-// This wrapper function converts IP to subnet and calls the underlying function
 func GenerateCniConfFileWithIP(id shared.MachineUUID, ip shared.Ipv4) (string, error) {
-	// Convert the provided IP to a subnet (assuming /30 as in the original function)
 	parsedIP := net.ParseIP(ip.String())
 	if parsedIP == nil {
 		return "", fmt.Errorf("invalid IP address: %s", ip.String())
 	}
 
-	// Create a /30 subnet from the provided IP
-	// For /30, we need to align to 4-byte boundaries
 	ipInt := binary.BigEndian.Uint32(parsedIP.To4())
-	subnetInt := ipInt & 0xFFFFFFFC // Clear last 2 bits for /30 subnet
+	subnetInt := ipInt & 0xFFFFFFFC
 	subnetIP := make(net.IP, 4)
 	binary.BigEndian.PutUint32(subnetIP, subnetInt)
 
