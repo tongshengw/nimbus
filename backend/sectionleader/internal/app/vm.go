@@ -107,6 +107,8 @@ func (manager *VMManager) CreateVM() (<-chan *models.MachineData, error) {
 	return outputChannel, nil
 }
 
+
+
 func (manager *VMManager) PauseVM(id shared.MachineUUID) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*5)
 
