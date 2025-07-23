@@ -37,9 +37,52 @@ type CNIConfig struct {
 
 var nextSubnet net.IP = net.ParseIP(constants.CniFirstSubnetStr).To4()
 
-// returns name of the config generated
-func GenerateCniConfFile(id shared.MachineUUID) (string, error) {
+// generateCniConfFileWithSubnet creates CNI configuration with the provided subnet
+// This is the underlying function that contains all the CNI configuration logic
+func generateCniConfFileWithSubnet(id shared.MachineUUID, subnet string, logMessage string) (string, error) {
 	vmID := id.String()
+
+	config := CNIConfig{
+		CNIVersion: "0.4.0",
+		Name:       fmt.Sprintf("fcnet-%s", vmID),
+		Plugins: []Plugin{
+			{
+				Type: "ptp",
+				IPAM: &IPAM{
+					Type:   "host-local",
+					Subnet: subnet,
+					Routes: []Route{
+						{Dst: "0.0.0.0/0"},
+					},
+				},
+			},
+			{
+				Type: "firewall",
+			},
+			{
+				Type: "tc-redirect-tap",
+			},
+		},
+	}
+
+	jsonBytes, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return "", err
+	}
+
+	confPath := CniConfRootDir + "/fcnet-" + id.String() + ".conflist"
+	err = os.MkdirAll(CniConfRootDir, 0755)
+	if err != nil {
+		return "", err
+	}
+
+	logrus.Infof(logMessage, subnet, confPath)
+	return config.Name, os.WriteFile(confPath, jsonBytes, 0644)
+}
+
+// GenerateCniConfFile generates CNI configuration with auto-incrementing subnet
+// This wrapper function handles subnet generation and calls the underlying function
+func GenerateCniConfFile(id shared.MachineUUID) (string, error) {
 	if nextSubnet.Equal(net.ParseIP(constants.CniLastSubnetStr).To4()) {
 		return "", fmt.Errorf("ran out of subnet IDs")
 	}
@@ -55,49 +98,12 @@ func GenerateCniConfFile(id shared.MachineUUID) (string, error) {
 	// FIXME:
 	logrus.Infof("HERE: %s", nextSubnet.String())
 
-	config := CNIConfig{
-		CNIVersion: "0.4.0",
-		Name:       fmt.Sprintf("fcnet-%s", vmID),
-		Plugins: []Plugin{
-			{
-				Type: "ptp",
-				IPAM: &IPAM{
-					Type:   "host-local",
-					Subnet: subnet,
-					Routes: []Route{
-						{Dst: "0.0.0.0/0"},
-					},
-				},
-			},
-			{
-				Type: "firewall",
-			},
-			{
-				Type: "tc-redirect-tap",
-			},
-		},
-	}
-
-	jsonBytes, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return "", err
-	}
-
-	confPath := CniConfRootDir + "/fcnet-" + id.String() + ".conflist"
-	err = os.MkdirAll(CniConfRootDir, 0755)
-	if err != nil {
-		return "", err
-	}
-
-	logrus.Infof("created CNI config, with subnet %s, path %s", subnet, confPath)
-	return config.Name, os.WriteFile(confPath, jsonBytes, 0644)
+	return generateCniConfFileWithSubnet(id, subnet, "created CNI config, with subnet %s, path %s")
 }
 
 // GenerateCniConfFileWithIP creates CNI configuration with a specific IP address
-// Used for resurrecting existing VMs where we know the IP address
+// This wrapper function converts IP to subnet and calls the underlying function
 func GenerateCniConfFileWithIP(id shared.MachineUUID, ip shared.Ipv4) (string, error) {
-	vmID := id.String()
-
 	// Convert the provided IP to a subnet (assuming /30 as in the original function)
 	parsedIP := net.ParseIP(ip.String())
 	if parsedIP == nil {
@@ -113,40 +119,5 @@ func GenerateCniConfFileWithIP(id shared.MachineUUID, ip shared.Ipv4) (string, e
 
 	subnet := subnetIP.String() + "/30"
 
-	config := CNIConfig{
-		CNIVersion: "0.4.0",
-		Name:       fmt.Sprintf("fcnet-%s", vmID),
-		Plugins: []Plugin{
-			{
-				Type: "ptp",
-				IPAM: &IPAM{
-					Type:   "host-local",
-					Subnet: subnet,
-					Routes: []Route{
-						{Dst: "0.0.0.0/0"},
-					},
-				},
-			},
-			{
-				Type: "firewall",
-			},
-			{
-				Type: "tc-redirect-tap",
-			},
-		},
-	}
-
-	jsonBytes, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return "", err
-	}
-
-	confPath := CniConfRootDir + "/fcnet-" + id.String() + ".conflist"
-	err = os.MkdirAll(CniConfRootDir, 0755)
-	if err != nil {
-		return "", err
-	}
-
-	logrus.Infof("created CNI config for resurrection, with subnet %s, path %s", subnet, confPath)
-	return config.Name, os.WriteFile(confPath, jsonBytes, 0644)
+	return generateCniConfFileWithSubnet(id, subnet, "created CNI config for resurrection, with subnet %s, path %s")
 }
