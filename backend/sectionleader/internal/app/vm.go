@@ -79,11 +79,18 @@ func (manager *VMManager) CreateVM() (<-chan *models.MachineData, error) {
 		}
 
 		newMachineData := models.MachineData{
-			Id:           id,
+			UUID:         id,
 			Name:         vmName,
 			LocalIp:      ip,
 			CreationTime: time.Now(),
 			SshPort:      constants.MinRemotePort + len(manager.VMs),
+			ForwardedPorts: []models.ForwardedPort{
+				{
+					MachinePort: 22,
+					RemotePort:  constants.MinRemotePort + len(manager.VMs),
+					Protocol:    "tcp",
+				},
+			},
 		}
 		err = db.CreateMachine(&newMachineData)
 		if err != nil {

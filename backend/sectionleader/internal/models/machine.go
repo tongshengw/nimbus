@@ -7,18 +7,19 @@ import (
 )
 
 type MachineData struct {
-	Id             shared.MachineUUID
-	Name           string
-	LocalIp        shared.Ipv4
-	SshPort        int
-	CreationTime   time.Time
-	ForwardedPorts []ForwardedPort
+	ID             uint               `gorm:"primaryKey;autoIncrement"`
+	UUID           shared.MachineUUID `gorm:"not null"`
+	Name           string             `gorm:"not null"`
+	LocalIp        shared.Ipv4        `gorm:"not null"`
+	SshPort        int                `gorm:"not null"`
+	CreationTime   time.Time          `gorm:"not null"`
+	ForwardedPorts []ForwardedPort    `gorm:"foreignKey:MachineID"`
 }
 
-// ForwardedPort is a port that is forwarded from the machine to host, then FRP will proxy the port from Hostport to Remoteport
 type ForwardedPort struct {
-	MachinePort int
-	HostPort    int
-	RemotePort  int
-	Protocol    string
+	ID          uint   `gorm:"primaryKey;autoIncrement"`
+	MachineID   uint   `gorm:"foreignKey:ID"`
+	MachinePort int    `gorm:"not null"`
+	RemotePort  int    `gorm:"not null;unique"`
+	Protocol    string `gorm:"not null"`
 }

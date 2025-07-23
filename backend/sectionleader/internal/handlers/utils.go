@@ -27,7 +27,7 @@ func CreateTomlFrpcConfig(data *models.MachineData) error {
 		return fmt.Errorf("port requested outside allowed port range")
 	}
 	cfg := proxyConfig{
-		Name:       data.Id.String(),
+		Name:       data.UUID.String(),
 		ConnType:   "tcp",
 		LocalIp:    data.LocalIp.String(),
 		LocalPort:  22,
@@ -43,7 +43,7 @@ func CreateTomlFrpcConfig(data *models.MachineData) error {
 		return err
 	}
 
-	file, err := os.Create(constants.FrpcConfigDir + "/" + data.Id.String() + ".toml")
+	file, err := os.Create(constants.FrpcConfigDir + "/" + data.UUID.String() + ".toml")
 	if err != nil {
 		return err
 	}

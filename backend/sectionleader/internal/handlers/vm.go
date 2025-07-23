@@ -44,7 +44,7 @@ func NewMachine(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenStr, err := middle.NewJwt(createMachineRes.Id, data.SecretKey)
+	tokenStr, err := middle.NewJwt(createMachineRes.UUID, data.SecretKey)
 	if err != nil {
 		logrus.Errorf("new jwt failed: %v", err)
 		http.Error(w, "Failed to create token", http.StatusInternalServerError)
@@ -67,7 +67,7 @@ func NewMachine(w http.ResponseWriter, r *http.Request) {
 		RemotePort  int    `json:"remote_port"`
 		RemoteIp    string `json:"remote_ip"`
 	}{
-		MachineId:   createMachineRes.Id.String(),
+		MachineId:   createMachineRes.UUID.String(),
 		MachineName: createMachineRes.Name,
 		LocalIp:     createMachineRes.LocalIp.String(),
 		Token:       tokenStr,
