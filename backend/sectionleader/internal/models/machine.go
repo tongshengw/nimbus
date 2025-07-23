@@ -10,7 +10,7 @@ type MachineData struct {
 	Id             shared.MachineUUID
 	Name           string
 	LocalIp        shared.Ipv4
-	RemotePort     int
+	SshPort        int
 	CreationTime   time.Time
 	ForwardedPorts []ForwardedPort
 }

@@ -14,3 +14,11 @@ func GetMachineByUUID(id shared.MachineUUID) ([]models.MachineData, error) {
 	err := DB.Where("Id = ?", id).Find(&machines).Error
 	return machines, err
 }
+
+func UpdateMachine(machine *models.MachineData) error {
+	return DB.Save(machine).Error
+}
+
+func DeleteMachine(id shared.MachineUUID) error {
+	return DB.Delete(&models.MachineData{}, id).Error
+}

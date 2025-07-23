@@ -71,7 +71,7 @@ func NewMachine(w http.ResponseWriter, r *http.Request) {
 		MachineName: createMachineRes.Name,
 		LocalIp:     createMachineRes.LocalIp.String(),
 		Token:       tokenStr,
-		RemotePort:  createMachineRes.RemotePort,
+		RemotePort:  createMachineRes.SshPort,
 		RemoteIp:    constants.PublicIpStr,
 	}
 

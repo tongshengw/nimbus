@@ -83,7 +83,7 @@ func (manager *VMManager) CreateVM() (<-chan *models.MachineData, error) {
 			Name:         vmName,
 			LocalIp:      ip,
 			CreationTime: time.Now(),
-			RemotePort:   constants.MinRemotePort + len(manager.VMs),
+			SshPort:      constants.MinRemotePort + len(manager.VMs),
 		}
 		err = db.CreateMachine(&newMachineData)
 		if err != nil {
