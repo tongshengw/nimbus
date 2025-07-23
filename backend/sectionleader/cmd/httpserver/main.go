@@ -36,6 +36,11 @@ func main() {
 	vmManager := app.NewVMManager()
 	installSignalHandlers(vmManager)
 
+	err = vmManager.ResurrectAllVMFromDB()
+	if err != nil {
+		logrus.Fatalf("failed to resurrect all VMs from DB: %v", err)
+	}
+
 	mux := http.NewServeMux()
 	mux.Handle("POST /new-machine", http.HandlerFunc(handlers.NewMachine))
 	mux.Handle("POST /shutdown-all", http.HandlerFunc(handlers.ShutdownAll))

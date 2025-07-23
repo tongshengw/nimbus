@@ -37,23 +37,8 @@ type CNIConfig struct {
 
 var nextSubnet net.IP = net.ParseIP(constants.CniFirstSubnetStr).To4()
 
-// returns name of the config generated
-func GenerateCniConfFile(id shared.MachineUUID) (string, error) {
+func generateCniConfFileWithSubnet(id shared.MachineUUID, subnet string, logMessage string) (string, error) {
 	vmID := id.String()
-	if nextSubnet.Equal(net.ParseIP(constants.CniLastSubnetStr).To4()) {
-		return "", fmt.Errorf("ran out of subnet IDs")
-	}
-	
-	subnet := nextSubnet.String() + "/30"
-
-	if nextSubnet.To4() == nil {
-		return "", fmt.Errorf("malformed next subnet ip")
-	}
-	subnetInt := binary.BigEndian.Uint32(nextSubnet.To4())
-	binary.BigEndian.PutUint32(nextSubnet, subnetInt + 4)
-
-	// FIXME:
-	logrus.Infof("HERE: %s", nextSubnet.String())
 
 	config := CNIConfig{
 		CNIVersion: "0.4.0",
@@ -89,6 +74,38 @@ func GenerateCniConfFile(id shared.MachineUUID) (string, error) {
 		return "", err
 	}
 
-	logrus.Infof("created CNI config, with subnet %s, path %s", subnet, confPath)
+	logrus.Infof(logMessage, subnet, confPath)
 	return config.Name, os.WriteFile(confPath, jsonBytes, 0644)
+}
+
+func GenerateCniConfFile(id shared.MachineUUID) (string, error) {
+	if nextSubnet.Equal(net.ParseIP(constants.CniLastSubnetStr).To4()) {
+		return "", fmt.Errorf("ran out of subnet IDs")
+	}
+
+	subnet := nextSubnet.String() + "/30"
+
+	if nextSubnet.To4() == nil {
+		return "", fmt.Errorf("malformed next subnet ip")
+	}
+	subnetInt := binary.BigEndian.Uint32(nextSubnet.To4())
+	binary.BigEndian.PutUint32(nextSubnet, subnetInt+4)
+
+	return generateCniConfFileWithSubnet(id, subnet, "created CNI config, with subnet %s, path %s")
+}
+
+func GenerateCniConfFileWithIP(id shared.MachineUUID, ip shared.Ipv4) (string, error) {
+	parsedIP := net.ParseIP(ip.String())
+	if parsedIP == nil {
+		return "", fmt.Errorf("invalid IP address: %s", ip.String())
+	}
+
+	ipInt := binary.BigEndian.Uint32(parsedIP.To4())
+	subnetInt := ipInt & 0xFFFFFFFC
+	subnetIP := make(net.IP, 4)
+	binary.BigEndian.PutUint32(subnetIP, subnetInt)
+
+	subnet := subnetIP.String() + "/30"
+
+	return generateCniConfFileWithSubnet(id, subnet, "created CNI config for resurrection, with subnet %s, path %s")
 }

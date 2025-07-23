@@ -8,6 +8,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/tongshengw/nimbus/backend/sectionleader/internal/constants"
+	"github.com/tongshengw/nimbus/backend/sectionleader/internal/app"
 	"github.com/tongshengw/nimbus/backend/sectionleader/internal/middle"
 	"github.com/tongshengw/nimbus/backend/sectionleader/internal/models"
 	"github.com/tongshengw/nimbus/backend/sectionleader/internal/shared"
@@ -44,7 +45,7 @@ func NewMachine(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenStr, err := middle.NewJwt(createMachineRes.Id, data.SecretKey)
+	tokenStr, err := middle.NewJwt(createMachineRes.UUID, data.SecretKey)
 	if err != nil {
 		logrus.Errorf("new jwt failed: %v", err)
 		http.Error(w, "Failed to create token", http.StatusInternalServerError)
@@ -52,7 +53,7 @@ func NewMachine(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// modify frp config
-	err = CreateTomlFrpcConfig(createMachineRes)
+	err = app.CreateTomlFrpcConfig(createMachineRes)
 	if err != nil {
 		logrus.Errorf("create toml frpc config failed: %v", err)
 		http.Error(w, "Failed to create reverse proxy config", http.StatusInternalServerError)
@@ -67,11 +68,11 @@ func NewMachine(w http.ResponseWriter, r *http.Request) {
 		RemotePort  int    `json:"remote_port"`
 		RemoteIp    string `json:"remote_ip"`
 	}{
-		MachineId:   createMachineRes.Id.String(),
+		MachineId:   createMachineRes.UUID.String(),
 		MachineName: createMachineRes.Name,
 		LocalIp:     createMachineRes.LocalIp.String(),
 		Token:       tokenStr,
-		RemotePort:  createMachineRes.RemotePort,
+		RemotePort:  createMachineRes.SshPort,
 		RemoteIp:    constants.PublicIpStr,
 	}
 
@@ -128,14 +129,14 @@ func ShutdownAll(w http.ResponseWriter, r *http.Request) {
 	type requestData struct {
 		SecretKey string `json:"secret_key"`
 	}
-	
+
 	var reqData requestData
 	err := json.NewDecoder(r.Body).Decode(&reqData)
 	if err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
-	
+
 	if reqData.SecretKey != data.SecretKey {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return

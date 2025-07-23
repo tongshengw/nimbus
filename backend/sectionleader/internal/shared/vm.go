@@ -102,5 +102,9 @@ func (m *IdNameMap) GetId(name string) (MachineUUID, error) {
 	}
 
 	return MachineUUID{}, fmt.Errorf("id not found")
+}
 
+func (m *IdNameMap) RestoreMapping(id MachineUUID, name string) {
+	m.idToName[id] = name
+	m.nameToId[name] = id
 }

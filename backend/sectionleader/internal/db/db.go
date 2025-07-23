@@ -17,5 +17,13 @@ func Init() error {
 	
 	// Auto-migrate the schema
 	err = DB.AutoMigrate(&models.MachineData{})
-	return err
+	if err != nil {
+		return err
+	}
+	err = DB.AutoMigrate(&models.ForwardedPort{})
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

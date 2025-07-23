@@ -1,4 +1,4 @@
-package handlers
+package app
 
 import (
 	"fmt"
@@ -23,15 +23,15 @@ type frpcConfig struct {
 }
 
 func CreateTomlFrpcConfig(data *models.MachineData) error {
-	if data.RemotePort < constants.MinRemotePort || data.RemotePort > constants.MaxRemotePort {
+	if data.SshPort < constants.MinRemotePort || data.SshPort > constants.MaxRemotePort {
 		return fmt.Errorf("port requested outside allowed port range")
 	}
 	cfg := proxyConfig{
-		Name:       data.Id.String(),
+		Name:       data.UUID.String(),
 		ConnType:   "tcp",
 		LocalIp:    data.LocalIp.String(),
 		LocalPort:  22,
-		RemotePort: data.RemotePort,
+		RemotePort: data.SshPort,
 	}
 
 	proxiesConfig := frpcConfig{
@@ -43,7 +43,7 @@ func CreateTomlFrpcConfig(data *models.MachineData) error {
 		return err
 	}
 
-	file, err := os.Create(constants.FrpcConfigDir + "/" + data.Id.String() + ".toml")
+	file, err := os.Create(constants.FrpcConfigDir + "/" + data.UUID.String() + ".toml")
 	if err != nil {
 		return err
 	}

@@ -79,11 +79,18 @@ func (manager *VMManager) CreateVM() (<-chan *models.MachineData, error) {
 		}
 
 		newMachineData := models.MachineData{
-			Id:           id,
+			UUID:         id,
 			Name:         vmName,
 			LocalIp:      ip,
 			CreationTime: time.Now(),
-			RemotePort:   constants.MinRemotePort + len(manager.VMs),
+			SshPort:      constants.MinRemotePort + len(manager.VMs),
+			ForwardedPorts: []models.ForwardedPort{
+				{
+					MachinePort: 22,
+					RemotePort:  constants.MinRemotePort + len(manager.VMs),
+					Protocol:    "tcp",
+				},
+			},
 		}
 		err = db.CreateMachine(&newMachineData)
 		if err != nil {
@@ -224,4 +231,87 @@ func (manager *VMManager) GetSshKey(id shared.MachineUUID) ([]byte, error) {
 	}
 
 	return key, nil
+}
+
+func (manager *VMManager) ResurrectAllVMFromDB() (error) {
+	machines, err := db.GetAllMachines()
+	if err != nil {
+		return err
+	}
+
+	for _, machine := range machines {
+		c, err := manager.ResurrectVM(machine.UUID)
+		if err != nil {
+			return err
+		}
+		<-c
+	}
+	return nil
+}
+
+func (manager *VMManager) ResurrectVM(id shared.MachineUUID) (<-chan *models.MachineData, error) {
+	// has to be withcancel as this is the context that lives with the machine
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	outputChannel := make(chan *models.MachineData)
+
+	go func() {
+		defer close(outputChannel)
+
+		// Get existing machine data from database
+		machines, err := db.GetMachineByUUID(id)
+		if err != nil {
+			logrus.Errorf("failed to get machine data from database: %v", err)
+			outputChannel <- nil
+			return
+		}
+
+		if len(machines) == 0 {
+			logrus.Errorf("machine with UUID %s not found in database", id.String())
+			outputChannel <- nil
+			return
+		}
+
+		machineData := machines[0] // Get the first (and should be only) result
+
+		manager.mutex.Lock()
+		defer manager.mutex.Unlock()
+
+		// Check if VM is already running
+		if _, exists := manager.VMs[id]; exists {
+			logrus.Errorf("VM with UUID %s is already running", id.String())
+			outputChannel <- nil
+			return
+		}
+
+		// Restore the existing VM
+		machine, err := RestoreExistingVM(ctx, id, machineData.LocalIp)
+		if err != nil {
+			logrus.Errorf("failed to restore VM: %v", err)
+			outputChannel <- nil
+			return
+		}
+
+		if machine == nil {
+			logrus.Errorf("RestoreExistingVM returned nil machine")
+			outputChannel <- nil
+			return
+		}
+
+		// Update the name mapping
+		manager.IdNameMap.RestoreMapping(id, machineData.Name)
+
+		vmPtr := &VM{
+			Machine: machine,
+			Id:      id,
+			State:   StateActive,
+			cancel:  cancelFunc,
+			data:    machineData,
+		}
+
+		manager.VMs[id] = vmPtr
+		logrus.Infof("successfully resurrected VM %s with IP %s", id.String(), string(machineData.LocalIp))
+		outputChannel <- &vmPtr.data
+	}()
+
+	return outputChannel, nil
 }
