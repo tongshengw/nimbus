@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"sync"
 	"time"
@@ -11,6 +10,9 @@ import (
 	firecracker "github.com/firecracker-microvm/firecracker-go-sdk"
 	"github.com/sirupsen/logrus"
 	"github.com/tongshengw/nimbus/backend/sectionleader/internal/constants"
+	"github.com/tongshengw/nimbus/backend/sectionleader/internal/db"
+	"github.com/tongshengw/nimbus/backend/sectionleader/internal/models"
+	"github.com/tongshengw/nimbus/backend/sectionleader/internal/shared"
 )
 
 type VMState int
@@ -21,42 +23,34 @@ const (
 	StateStopped
 )
 
-type MachineData struct {
-	Id           MachineUUID
-	Name         string
-	LocalIp      net.IPNet
-	RemotePort   int
-	CreationTime time.Time
-}
-
 type VM struct {
 	Machine *firecracker.Machine
-	Id      MachineUUID
+	Id      shared.MachineUUID
 	State   VMState
 	cancel  context.CancelFunc
-	data    MachineData
+	data    models.MachineData
 }
 
 type VMManager struct {
 	mutex         sync.Mutex
 	createVmMutex sync.Mutex
-	IdNameMap     *IdNameMap
-	VMs           map[MachineUUID]*VM
+	IdNameMap     *shared.IdNameMap
+	VMs           map[shared.MachineUUID]*VM
 }
 
 func NewVMManager() *VMManager {
 	return &VMManager{
 		mutex:         sync.Mutex{},
 		createVmMutex: sync.Mutex{},
-		IdNameMap:     NewIdNameMap(),
-		VMs:           make(map[MachineUUID]*VM),
+		IdNameMap:     shared.NewIdNameMap(),
+		VMs:           make(map[shared.MachineUUID]*VM),
 	}
 }
 
-func (manager *VMManager) CreateVM() (<-chan *MachineData, error) {
+func (manager *VMManager) CreateVM() (<-chan *models.MachineData, error) {
 	// has to be withcancel as this is the context that lives with the machine
 	ctx, cancelFunc := context.WithCancel(context.Background())
-	outputChannel := make(chan *MachineData)
+	outputChannel := make(chan *models.MachineData)
 
 	go func() {
 		manager.createVmMutex.Lock()
@@ -84,18 +78,27 @@ func (manager *VMManager) CreateVM() (<-chan *MachineData, error) {
 			return
 		}
 
+		newMachineData := models.MachineData{
+			Id:           id,
+			Name:         vmName,
+			LocalIp:      ip,
+			CreationTime: time.Now(),
+			RemotePort:   constants.MinRemotePort + len(manager.VMs),
+		}
+		err = db.CreateMachine(&newMachineData)
+		if err != nil {
+			logrus.Errorf("failed to save machine to database: %v", err)
+			outputChannel <- nil
+			return
+		}
+
 		vmPtr := &VM{
 			Machine: machine,
 			Id:      id,
 			State:   StateActive,
 			cancel:  cancelFunc,
-			data: MachineData{
-				Id:           id,
-				Name:         vmName,
-				LocalIp:      ip,
-				CreationTime: time.Now(),
-				RemotePort:   constants.MinRemotePort + len(manager.VMs),
-			}}
+			data:    newMachineData,
+		}
 
 		manager.VMs[id] = vmPtr
 		outputChannel <- &vmPtr.data
@@ -104,10 +107,10 @@ func (manager *VMManager) CreateVM() (<-chan *MachineData, error) {
 	return outputChannel, nil
 }
 
-func (manager *VMManager) PauseVM(id MachineUUID) {
+func (manager *VMManager) PauseVM(id shared.MachineUUID) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*5)
 
-	go func(ctx context.Context, cancelFunc context.CancelFunc, manager *VMManager, id MachineUUID) {
+	go func(ctx context.Context, cancelFunc context.CancelFunc, manager *VMManager, id shared.MachineUUID) {
 		defer cancelFunc()
 
 		manager.mutex.Lock()
@@ -129,10 +132,10 @@ func (manager *VMManager) PauseVM(id MachineUUID) {
 	}(ctx, cancelFunc, manager, id)
 }
 
-func (manager *VMManager) ResumeVM(id MachineUUID) {
+func (manager *VMManager) ResumeVM(id shared.MachineUUID) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*5)
 
-	go func(ctx context.Context, cancelFunc context.CancelFunc, manager *VMManager, id MachineUUID) {
+	go func(ctx context.Context, cancelFunc context.CancelFunc, manager *VMManager, id shared.MachineUUID) {
 		defer cancelFunc()
 
 		vmPtr := manager.VMs[id]
@@ -150,8 +153,8 @@ func (manager *VMManager) ResumeVM(id MachineUUID) {
 	}(ctx, cancelFunc, manager, id)
 }
 
-func (manager *VMManager) GracefulShutdownVM(id MachineUUID) <-chan bool {
-	ctx, cancelFunc := context.WithTimeout(context.Background(), constants.DefaultTimeout * 5)
+func (manager *VMManager) GracefulShutdownVM(id shared.MachineUUID) <-chan bool {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), constants.DefaultTimeout*5)
 	logrus.Infof("requested machine %s shutdown", id.String())
 	outputChan := make(chan bool)
 
@@ -206,11 +209,11 @@ func (manager *VMManager) GracefulShutdownAll() error {
 			// correct, proceed
 		}
 	}
-	
+
 	return nil
 }
 
-func (manager *VMManager) GetSshKey(id MachineUUID) ([]byte, error) {
+func (manager *VMManager) GetSshKey(id shared.MachineUUID) ([]byte, error) {
 	if _, ok := manager.VMs[id]; !ok {
 		return nil, fmt.Errorf("machine does not exist")
 	}

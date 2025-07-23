@@ -7,9 +7,10 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/tongshengw/nimbus/backend/sectionleader/internal/app"
 	"github.com/tongshengw/nimbus/backend/sectionleader/internal/constants"
 	"github.com/tongshengw/nimbus/backend/sectionleader/internal/middle"
+	"github.com/tongshengw/nimbus/backend/sectionleader/internal/models"
+	"github.com/tongshengw/nimbus/backend/sectionleader/internal/shared"
 )
 
 func NewMachine(w http.ResponseWriter, r *http.Request) {
@@ -28,7 +29,7 @@ func NewMachine(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var createMachineRes *app.MachineData
+	var createMachineRes *models.MachineData
 
 	select {
 	case createMachineRes = <-outputChan:
@@ -68,7 +69,7 @@ func NewMachine(w http.ResponseWriter, r *http.Request) {
 	}{
 		MachineId:   createMachineRes.Id.String(),
 		MachineName: createMachineRes.Name,
-		LocalIp:     createMachineRes.LocalIp.IP.String(),
+		LocalIp:     createMachineRes.LocalIp.String(),
 		Token:       tokenStr,
 		RemotePort:  createMachineRes.RemotePort,
 		RemoteIp:    constants.PublicIpStr,
@@ -80,7 +81,7 @@ func NewMachine(w http.ResponseWriter, r *http.Request) {
 }
 
 func SshKey(w http.ResponseWriter, r *http.Request) {
-	machineId, ok := r.Context().Value(middle.MachineIdContextDataKey).(app.MachineUUID)
+	machineId, ok := r.Context().Value(middle.MachineIdContextDataKey).(shared.MachineUUID)
 	if !ok {
 		logrus.Errorf("machine uuid data not ok")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)

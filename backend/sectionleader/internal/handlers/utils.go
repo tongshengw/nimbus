@@ -2,19 +2,18 @@ package handlers
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 
 	"github.com/BurntSushi/toml"
-	"github.com/tongshengw/nimbus/backend/sectionleader/internal/app"
 	"github.com/tongshengw/nimbus/backend/sectionleader/internal/constants"
+	"github.com/tongshengw/nimbus/backend/sectionleader/internal/models"
 )
 
 type proxyConfig struct {
 	Name       string `toml:"name"`
 	ConnType   string `toml:"type"`
-	LocalIp    net.IP `toml:"localIP"`
+	LocalIp    string `toml:"localIP"`
 	LocalPort  int    `toml:"localPort"`
 	RemotePort int    `toml:"remotePort"`
 }
@@ -23,14 +22,14 @@ type frpcConfig struct {
 	Proxies []proxyConfig `toml:"proxies"`
 }
 
-func CreateTomlFrpcConfig(data *app.MachineData) error {
+func CreateTomlFrpcConfig(data *models.MachineData) error {
 	if data.RemotePort < constants.MinRemotePort || data.RemotePort > constants.MaxRemotePort {
 		return fmt.Errorf("port requested outside allowed port range")
 	}
 	cfg := proxyConfig{
 		Name:       data.Id.String(),
 		ConnType:   "tcp",
-		LocalIp:    data.LocalIp.IP,
+		LocalIp:    data.LocalIp.String(),
 		LocalPort:  22,
 		RemotePort: data.RemotePort,
 	}

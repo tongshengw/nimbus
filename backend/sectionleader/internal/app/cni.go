@@ -9,6 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/tongshengw/nimbus/backend/sectionleader/internal/constants"
+	"github.com/tongshengw/nimbus/backend/sectionleader/internal/shared"
 )
 
 const CniConfRootDir = "/etc/cni/conf.d"
@@ -37,7 +38,7 @@ type CNIConfig struct {
 var nextSubnet net.IP = net.ParseIP(constants.CniFirstSubnetStr).To4()
 
 // returns name of the config generated
-func GenerateCniConfFile(id MachineUUID) (string, error) {
+func GenerateCniConfFile(id shared.MachineUUID) (string, error) {
 	vmID := id.String()
 	if nextSubnet.Equal(net.ParseIP(constants.CniLastSubnetStr).To4()) {
 		return "", fmt.Errorf("ran out of subnet IDs")

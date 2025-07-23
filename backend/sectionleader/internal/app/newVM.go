@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/tongshengw/nimbus/backend/sectionleader/internal/constants"
+	"github.com/tongshengw/nimbus/backend/sectionleader/internal/shared"
 
 	firecracker "github.com/firecracker-microvm/firecracker-go-sdk"
 	"github.com/sirupsen/logrus"
@@ -30,32 +30,32 @@ const (
 )
 
 type vmFilePaths struct {
-	id            MachineUUID
+	id            shared.MachineUUID
 	kernelImgPath string
 	fsRootPath    string
 	stdoutPath    string
 	stderrPath    string
 }
 
-func SpawnNewVM(ctx context.Context) (*firecracker.Machine, MachineUUID, net.IPNet, error) {
-	id := MachineUUID(uuid.New())
+func SpawnNewVM(ctx context.Context) (*firecracker.Machine, shared.MachineUUID, shared.Ipv4, error) {
+	id := shared.MachineUUID(uuid.New())
 
 	vmPaths, err := createVMFolder(id)
 	if err != nil {
 		logrus.Fatal(err)
-		return nil, id, net.IPNet{}, err
+		return nil, id, shared.Ipv4{}, err
 	}
 
 	opts, err := setVMOpts(vmPaths)
 	if err != nil {
 		logrus.Fatal(err)
-		return nil, id, net.IPNet{}, err
+		return nil, id, shared.Ipv4{}, err
 	}
 	defer opts.Close()
 
 	machine, err := setupFirecrackerMachine(ctx, opts)
 	if err != nil {
-		return nil, id, net.IPNet{},err
+		return nil, id, shared.Ipv4{},err
 	}
 
 	machineStartedChannel := make(chan bool)
@@ -65,18 +65,18 @@ func SpawnNewVM(ctx context.Context) (*firecracker.Machine, MachineUUID, net.IPN
 	case machineStarted := <-machineStartedChannel:
 		if machineStarted {
 			// success route
-			ip := machine.Cfg.NetworkInterfaces[0].StaticConfiguration.IPConfiguration.IPAddr
-			return machine, id, ip, nil
+			ip := machine.Cfg.NetworkInterfaces[0].StaticConfiguration.IPConfiguration.IPAddr.IP
+			return machine, id, shared.Ipv4(ip), nil
 		} else {
-			return nil, id, net.IPNet{}, fmt.Errorf("machine start fail")
+			return nil, id, shared.Ipv4{}, fmt.Errorf("machine start fail")
 		}
 
 	case <-time.After(constants.DefaultTimeout):
-		return nil, id, net.IPNet{}, fmt.Errorf("machine start timed out")
+		return nil, id, shared.Ipv4{}, fmt.Errorf("machine start timed out")
 	}
 }
 
-func createVMFolder(id MachineUUID) (vmFilePaths, error) {
+func createVMFolder(id shared.MachineUUID) (vmFilePaths, error) {
 	dstRootPath := constants.DataDirPath + "/" + id.String()
 	err := os.MkdirAll(dstRootPath, 0755)
 	if err != nil {

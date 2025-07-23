@@ -11,6 +11,7 @@ import (
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 	"github.com/tongshengw/nimbus/backend/sectionleader/internal/app"
+	"github.com/tongshengw/nimbus/backend/sectionleader/internal/db"
 	"github.com/tongshengw/nimbus/backend/sectionleader/internal/handlers"
 	"github.com/tongshengw/nimbus/backend/sectionleader/internal/middle"
 )
@@ -29,6 +30,8 @@ func main() {
 	if err != nil {
 		logrus.Fatalf("failed to load .env: %v", err)
 	}
+
+	db.Init()
 
 	vmManager := app.NewVMManager()
 	installSignalHandlers(vmManager)
@@ -59,9 +62,9 @@ func main() {
 	fmt.Print(splash)
 
 	corsHandler := cors.New(cors.Options{
-		AllowedOrigins:   []string{"*"},
+		AllowedOrigins: []string{"*"},
 		AllowedHeaders: []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
 	}).Handler(mux)
 
 	logrus.Println("Starting server on :7212")

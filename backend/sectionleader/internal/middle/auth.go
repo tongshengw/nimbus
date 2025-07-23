@@ -8,10 +8,10 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
-	"github.com/tongshengw/nimbus/backend/sectionleader/internal/app"
+	"github.com/tongshengw/nimbus/backend/sectionleader/internal/shared"
 )
 
-func NewJwt(id app.MachineUUID, secretKey string) (string, error) {
+func NewJwt(id shared.MachineUUID, secretKey string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256,
 		jwt.MapClaims{
 			"machineId": id.String(),
@@ -68,7 +68,7 @@ func CheckJwt(next http.Handler) http.Handler {
 				return
 			}
 
-			machineId := app.MachineUUID(newUUID)
+			machineId := shared.MachineUUID(newUUID)
 
 			newCtx := context.WithValue(r.Context(), MachineIdContextDataKey, machineId)
 			next.ServeHTTP(w, r.WithContext(newCtx))
