@@ -15,6 +15,12 @@ func GetMachineByUUID(id shared.MachineUUID) ([]models.MachineData, error) {
 	return machines, err
 }
 
+func GetAllMachines() ([]models.MachineData, error) {
+	var machines []models.MachineData
+	err := DB.Find(&machines).Error
+	return machines, err
+}
+
 func UpdateMachine(machine *models.MachineData) error {
 	return DB.Save(machine).Error
 }
