@@ -22,8 +22,7 @@ jobs:
           password: ${{ secrets.GHCR_TOKEN }}
 
       - name: Build Docker image
-        working-directory: frontend/nexus
-        run: docker build -t ghcr.io/${{ secrets.GHCR_USER }}/nexus:latest .
+        run: docker build -t ghcr.io/${{ secrets.GHCR_USER }}/nexus:latest frontend/nexus
 
       - name: Push Docker image
         run: docker push ghcr.io/${{ secrets.GHCR_USER }}/nexus:latest
