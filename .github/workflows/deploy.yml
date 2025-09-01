@@ -1,0 +1,48 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USER }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build Docker image
+        run: docker build -t ghcr.io/${{ secrets.GHCR_USER }}/nexus:latest .
+
+      - name: Push Docker image
+        run: docker push ghcr.io/${{ secrets.GHCR_USER }}/nexus:latest
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            docker login ghcr.io -u ${{ secrets.GHCR_USER }} -p ${{ secrets.GHCR_TOKEN }}
+            docker pull ghcr.io/${{ secrets.GHCR_USER }}/nexus:latest
+            docker stop nexus || true
+            docker rm nexus || true
+            docker run -d --name nexus -p 7214:80 ghcr.io/${{ secrets.GHCR_USER }}/nexus:latest
+
+
+
