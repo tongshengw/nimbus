@@ -46,7 +46,7 @@ jobs:
             docker pull ghcr.io/${{ secrets.GHCR_USER }}/nexus:latest
             docker stop nexus || true
             docker rm nexus || true
-            docker run -d --name nexus -p 7214:80 7212:7212 ghcr.io/${{ secrets.GHCR_USER }}/nexus:latest
+            docker run -d --name nexus -p 7214:80 -p 7212:7212 ghcr.io/${{ secrets.GHCR_USER }}/nexus:latest
 
 
 
