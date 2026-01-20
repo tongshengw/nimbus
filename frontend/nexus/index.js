@@ -1,4 +1,4 @@
-let apiBase = "http://127.0.0.1:7212"
+let apiBase = "https://vmapi.tongshengwu.com"
 
 document.addEventListener("DOMContentLoaded", async () => {
     await fetch(apiBase + "/check-status", {
